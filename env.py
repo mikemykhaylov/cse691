@@ -517,6 +517,38 @@ def register_env():
 
 register_env()
 
+
+def print_3d_grid_indices():
+    """
+    Prints the 1D index (0-26) for each cell in a 3x3x3 grid,
+    visualized layer by layer (along the Z-axis).
+    Uses the standard indexing: index = x + y*3 + z*9
+    """
+    print("--- 3x3x3 Grid Cell Indices ---")
+    print("Mapping: index = x + y*3 + z*9")
+    print("(Where x, y, z range from 0 to 2)")
+    print("-" * 30)
+
+    for z in range(3):  # Iterate through layers (depth)
+        print(f"\nLayer Z = {z}:")
+        print("        <---- X ---->")
+        print("         (0) (1) (2)")
+        print("        +---+---+---+")
+        # Iterate through rows (Y), printing from top (y=2) to bottom (y=0)
+        # for a more conventional grid display.
+        for y in range(2, -1, -1):
+            row_str = f"Y={y} |"
+            # Iterate through columns (X)
+            for x in range(3):
+                index = x + y * 3 + z * 9
+                # Format index to take 2 spaces for alignment
+                row_str += f" {index:2d}|"
+            print(f"  ^ {row_str}")
+            print("  |     +---+---+---+")
+        print("  Y")  # Label Y axis direction
+
+    print("\n--- End of Grid Indices ---")
+
 # --- Example Usage and Validation ---
 if __name__ == '__main__':
     print("\n--- Validating Environment ---")
@@ -535,6 +567,8 @@ if __name__ == '__main__':
         traceback.print_exc()
 
     print("\n--- Running Sample Episode (Random Agent) ---")
+    print_3d_grid_indices()
+    print()
     env = gym.make('SuperTicTacToe3D-v0', render_mode='human')  # Create instance with rendering
     obs, info = env.reset()
     terminated = False
