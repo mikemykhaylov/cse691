@@ -554,7 +554,7 @@ if __name__ == '__main__':
     print("\n--- Validating Environment ---")
     try:
         # Use the registered ID
-        env = gym.make('SuperTicTacToe3D-v0', render_mode='human')
+        env = gym.make('SuperTicTacToe3D-v0')  # No rendering for validation
         # Check the environment using Gymnasium's tool
         from gymnasium.utils.env_checker import check_env
 
