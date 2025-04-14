@@ -437,9 +437,10 @@ class SuperTicTacToe3DEnv(gym.Env):
 
         # Large Board Representation (3 layers)
         s += "Large Board State (Layers Z=0, Z=1, Z=2):\n"
+        s += "[.] signifies the next playable large cell(s)\n"
         for z in range(3):
             s += f" Z={z}\n"
-            for y in range(3):
+            for y in range(2, -1, -1):  # Print Y from top (2) to bottom (0)
                 row_str = "  "
                 for x in range(3):
                     idx_1d = x + y * 3 + z * 9
