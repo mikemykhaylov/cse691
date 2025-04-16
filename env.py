@@ -1,8 +1,7 @@
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
-import itertools
-from typing import Optional, Tuple, Dict, Any, List, Union
+from typing import Optional, Tuple, Dict, Any, Union
 
 
 def _get_winning_lines_3x3x3():
