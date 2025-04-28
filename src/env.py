@@ -321,45 +321,6 @@ class SuperTicTacToe3DEnv(gym.Env):
             # The target large cell is finished (won or drawn), player can go anywhere
             self._next_large_cell_idx = 27
 
-        # Check for draw condition even if no small board was won this turn
-        # (i.e., the last playable cell was filled, resulting in a draw)
-        if not terminated and not np.any(self._compute_action_mask()):  # Recompute mask for next player
-            # If there are no valid moves left for the *next* player, it's a draw
-            # This check is done *before* switching the player
-            is_large_board_full = not np.any(self._large_board == self.EMPTY)
-            if is_large_board_full:
-                # We need to ensure the *other* player didn't win on the previous turn
-                # This is tricky. Let's rely on the action mask: if no moves are possible, it's a draw.
-                # We check if any EMPTY cells exist on the large board; if not, and no winner, it's a draw.
-                # The most robust check is if the *next* action mask is all zeros.
-
-                # Re-calculate potential next player's mask
-                potential_next_large_idx = small_idx  # Where the next player *would* be sent
-
-                # Determine where the next player *must* play
-                if self._large_board[potential_next_large_idx] != self.EMPTY:
-                    potential_next_large_idx = 27  # Can play anywhere
-
-                # Create a temporary mask based on this potential next state
-                temp_mask = np.zeros(729, dtype=np.int8)
-                if potential_next_large_idx == 27:
-                    for l_idx in range(27):
-                        if self._large_board[l_idx] == self.EMPTY:
-                            for s_idx in range(27):
-                                if self._small_boards[l_idx, s_idx] == self.EMPTY:
-                                    temp_mask[l_idx * 27 + s_idx] = 1
-                else:
-                    if self._large_board[potential_next_large_idx] == self.EMPTY:
-                        for s_idx in range(27):
-                            if self._small_boards[potential_next_large_idx, s_idx] == self.EMPTY:
-                                temp_mask[potential_next_large_idx * 27 + s_idx] = 1
-
-                # Check if any valid moves exist for the next player
-                if not np.any(temp_mask):
-                    terminated = True
-                    self._game_winner = 0  # Draw
-                    reward = 0.0
-
         self._is_terminal = terminated  # Update terminal state flag
 
         # --- Prepare for Next Turn ---
