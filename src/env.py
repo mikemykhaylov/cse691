@@ -189,40 +189,32 @@ class SuperTicTacToe3DEnv(gym.Env):
         can_play_anywhere = (self._next_large_cell_idx == 27)
 
         if can_play_anywhere:
-            # Iterate through all large cells
-            for large_idx in range(27):
-                # Can only play if the large cell is not finished (won or drawn)
-                if self._large_board[large_idx] == self.EMPTY:
-                    # Iterate through small cells within this large cell
-                    for small_idx in range(27):
-                        if self._small_boards[large_idx, small_idx] == self.EMPTY:
-                            mask[large_idx * 27 + small_idx] = 1
+            # Find large boards that are not finished (EMPTY)
+            playable_large_indices = np.where(self._large_board == self.EMPTY)[0]
+            # Find empty small cells within those playable large boards
+            empty_small_cells = (self._small_boards[playable_large_indices] == self.EMPTY)
+            # Iterate only through the playable large boards to set the mask
+            for i, large_idx in enumerate(playable_large_indices):
+                valid_small_indices = np.where(empty_small_cells[i])[0]
+                if valid_small_indices.size > 0: # Check if there are any valid moves
+                    mask[large_idx * 27 + valid_small_indices] = 1
         else:
-            # Forced to play in a specific large cell (_next_large_cell_idx)
-            # Check if this target cell is actually playable (should be, unless game ended unexpectedly)
+            # Forced to play in a specific large cell
             large_idx = self._next_large_cell_idx
             if self._large_board[large_idx] == self.EMPTY:
-                # Iterate through small cells within this specific large cell
-                for small_idx in range(27):
-                    if self._small_boards[large_idx, small_idx] == self.EMPTY:
-                        mask[large_idx * 27 + small_idx] = 1
+                # Find empty small cells in the specific large board directly
+                valid_small_indices = np.where(self._small_boards[large_idx] == self.EMPTY)[0]
+                if valid_small_indices.size > 0:
+                     mask[large_idx * 27 + valid_small_indices] = 1
             else:
                 # This case should ideally not happen if _next_large_cell_idx was set correctly
                 # It implies the game sent the player to a finished board.
                 # Fallback to playing anywhere (treat as if _next_large_cell_idx was 27)
                 # This could indicate a bug in the _next_large_cell_idx update logic.
                 # Let's recompute as if play is anywhere
-                print(
-                    f"Warning: Player {self._current_player} forced to play in finished large cell {large_idx}. Allowing play anywhere.")
-                # for l_idx in range(27):
-                #     if self._large_board[l_idx] == self.EMPTY:
-                #         for s_idx in range(27):
-                #             if self._small_boards[l_idx, s_idx] == self.EMPTY:
-                #                 mask[l_idx * 27 + s_idx] = 1
-                # Dump the entire state and exit
                 self._render_human()
                 raise ValueError(
-                    f"Player {self._current_player} forced to play in finished large cell {large_idx}. "
+                    f"Player {self._current_player} forced to play in finished large cell {large_idx}."
                 )
 
         return mask
