@@ -517,10 +517,6 @@ def register_env():
         # Environment might already be registered if script is run multiple times
         print(f"Environment registration skipped: {e}")
 
-
-register_env()
-
-
 def print_3d_grid_indices():
     """
     Prints the 1D index (0-26) for each cell in a 3x3x3 grid,
@@ -554,6 +550,8 @@ def print_3d_grid_indices():
 
 # --- Example Usage and Validation ---
 if __name__ == '__main__':
+    register_env()
+
     print("\n--- Validating Environment ---")
     try:
         # Use the registered ID
@@ -569,9 +567,8 @@ if __name__ == '__main__':
 
         traceback.print_exc()
 
-    print("\n--- Running Sample Episode (Random Agent) ---")
     print_3d_grid_indices()
-    print()
+    print("\n--- Running Sample Episode (Random Agent) ---")
     env = gym.make('SuperTicTacToe3D-v0', render_mode='human')  # Create instance with rendering
     obs, info = env.reset()
     terminated = False
