@@ -171,6 +171,16 @@ class LookaheadAgent:
             # Evaluate based on current state (likely a draw)
             raise RuntimeError("LookaheadAgent._minimax_search called with no valid moves and game is not terminal!")
 
+        next_large_cell_idx = obs['next_large_cell']
+        if next_large_cell_idx == 27:
+            playable_large_indices = sorted(list(set(a // 27 for a in valid_actions)))
+            print("LookaheadAgent: Selecting big cell inside minimax using heuristic to reduce search space.")
+            large_board = obs["large_board"]
+            chosen_large_idx_target = choose_action_within_board(large_board.copy(), current_player,
+                                                                 playable_large_indices, _lines, self.rng)
+            valid_actions = valid_actions[np.where(valid_actions // 27 == chosen_large_idx_target)[0]]
+            print(f"LookaheadAgent: Masked valid actions to {valid_actions} based on heuristic choice.")
+
         # Initialize based on whose turn it is
         if current_player == self.player_id:
             best_value = float('inf')  # Agent wants to *minimize* moves-to-win
@@ -255,7 +265,7 @@ class LookaheadAgent:
             large_board = observation["large_board"]
             chosen_large_idx_target = choose_action_within_board(large_board.copy(), current_player,
                                                                  playable_large_indices, _lines, rng)
-            valid_actions = np.where(valid_actions // 27 == chosen_large_idx_target)[0]
+            valid_actions = valid_actions[np.where(valid_actions // 27 == chosen_large_idx_target)[0]]
             print(f"LookaheadAgent: Masked valid actions to {valid_actions} based on heuristic choice.")
 
         # --- Iterate through possible first moves ---
