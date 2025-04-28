@@ -1,45 +1,43 @@
 import copy  # Needed for deep copying environment states
 import time  # For basic timing/reporting
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional
 
 import gymnasium as gym
 import numpy as np
+from numpy import ndarray
+
+# Assuming your heuristic agent file is src.agent.py
+from src.agent import choose_action_heuristic, choose_action_within_board
+from src.env import SuperTicTacToe3DEnv, _get_winning_lines_3x3x3, print_3d_grid_indices, register_env
+
+_lines = _get_winning_lines_3x3x3()  # Get winning lines once
+print("Successfully imported environment and heuristic agent.")
 
 # --- Assumed Imports (Place these in your actual file structure) ---
-try:
-    # Assuming your environment file is src/env.py
-    from src.env import SuperTicTacToe3DEnv, _get_winning_lines_3x3x3
-    # Assuming your heuristic agent file is src.agent.py
-    from src.agent import choose_action_heuristic
+# try:
+#     # Assuming your environment file is src/env.py
+#     from src.env import SuperTicTacToe3DEnv, _get_winning_lines_3x3x3
+#     # Assuming your heuristic agent file is src.agent.py
+#     from src.agent import choose_action_heuristic
+#     _lines = _get_winning_lines_3x3x3() # Get winning lines once
+#     print("Successfully imported environment and heuristic agent.")
+# except ImportError as e:
+#     print(f"Import Error: {e}")
+#     print("Please ensure 'src/env.py' and 'src/agent.py' exist and contain")
+#     print("SuperTicTacToe3DEnv, _get_winning_lines_3x3x3, and choose_action_heuristic.")
+#     # Define dummy functions/classes if imports fail, so the rest can be parsed
+#     class SuperTicTacToe3DEnv: pass
+#     def _get_winning_lines_3x3x3(): return []
+#     def choose_action_heuristic(*args, **kwargs): return 0
+#     _lines = []
+#     # Exit or raise an error if essential components are missing
+#     # raise ImportError("Could not load necessary environment/agent components.") from e
 
-    _lines = _get_winning_lines_3x3x3()  # Get winning lines once
-    print("Successfully imported environment and heuristic agent.")
-except ImportError as e:
-    print(f"Import Error: {e}")
-    print("Please ensure 'src/env.py' and 'src/agent.py' exist and contain")
-    print("SuperTicTacToe3DEnv, _get_winning_lines_3x3x3, and choose_action_heuristic.")
-
-
-    # Define dummy functions/classes if imports fail, so the rest can be parsed
-    class SuperTicTacToe3DEnv:
-        pass
-
-
-    def _get_winning_lines_3x3x3():
-        return []
-
-
-    def choose_action_heuristic(*args, **kwargs):
-        return 0
-
-
-    _lines = []  # Exit or raise an error if essential components are missing  # raise ImportError("Could not load necessary environment/agent components.") from e
 
 # Constants (can be fetched from env instance if needed)
 PLAYER1 = 1
 PLAYER2 = 2
 DRAW = 0  # Assuming DRAW=0 in heuristic info['game_winner'] convention
-INF_MOVES = float('inf')  # Value for losing/drawing
 
 
 class LookaheadAgent:
@@ -78,7 +76,7 @@ class LookaheadAgent:
         if 'choose_action_heuristic' not in globals() or not callable(choose_action_heuristic):
             raise RuntimeError("Heuristic function 'choose_action_heuristic' not available.")
 
-    def _heuristic_rollout(self, env_state: SuperTicTacToe3DEnv) -> float:
+    def _heuristic_rollout(self, env_state: SuperTicTacToe3DEnv) -> int:
         """
         Plays out a game from the given state using the heuristic agent
         for BOTH players until the game ends.
@@ -88,7 +86,6 @@ class LookaheadAgent:
 
         Returns:
             Number of moves made during the rollout if self.player_id wins.
-            float('inf') if self.player_id loses or the game is a draw.
         """
         # Ensure we're working with a copy that can be modified
         current_env = copy.deepcopy(env_state)
@@ -97,6 +94,7 @@ class LookaheadAgent:
         info = current_env._get_info()
         terminated = current_env._is_terminal
         truncated = False  # Assuming no truncation in the game logic
+        up_to_this_point_moves = np.count_nonzero(obs['small_boards'])
         rollout_moves = 0
 
         while not terminated and not truncated:
@@ -123,17 +121,17 @@ class LookaheadAgent:
             # Optional: Add a safety break for extremely long rollouts (indicative of issues)
             if rollout_moves > (27 * 27):  # Max possible moves
                 print("Warning: Rollout exceeded maximum possible game length. Aborting.")
-                return INF_MOVES  # Treat as unfavorable outcome
+                raise RuntimeError("Rollout exceeded maximum possible game length.")
 
         # Game ended, evaluate the outcome
         winner = info.get('game_winner', None)  # Use .get for safety
 
         if winner == self.player_id:
-            return float(rollout_moves)
+            return -(27 ** 2 - up_to_this_point_moves - rollout_moves)
         else:  # Loss or Draw
-            return INF_MOVES
+            return 27 ** 2 - up_to_this_point_moves - rollout_moves
 
-    def _minimax_search(self, env_state: SuperTicTacToe3DEnv, depth: int) -> float:
+    def _minimax_search(self, env_state: SuperTicTacToe3DEnv, depth: int, taken_moves: ndarray) -> float:
         """
         Recursive minimax function.
 
@@ -149,9 +147,9 @@ class LookaheadAgent:
         if env_state._is_terminal:
             winner = env_state._game_winner
             if winner == self.player_id:
-                return 0.0  # Won immediately (0 extra moves)
+                return -1
             else:
-                return INF_MOVES  # Lost or drew immediately
+                return 1
 
         # Base case: Reached maximum lookahead depth
         if depth == self.n:
@@ -165,16 +163,19 @@ class LookaheadAgent:
         action_mask = info['action_mask']
         valid_actions = np.where(action_mask == 1)[0]
 
+        print(
+            f"LookaheadAgent: Exploring move subsequence {taken_moves} at depth {depth}, current player {current_player}.")
+
         if len(valid_actions) == 0:
             # Game ends here unexpectedly (should have been caught by _is_terminal)
             # Evaluate based on current state (likely a draw)
-            return INF_MOVES
+            raise RuntimeError("LookaheadAgent._minimax_search called with no valid moves and game is not terminal!")
 
         # Initialize based on whose turn it is
         if current_player == self.player_id:
-            best_value = INF_MOVES  # Agent wants to minimize moves-to-win
+            best_value = float('inf')  # Agent wants to *minimize* moves-to-win
         else:  # Opponent's turn
-            best_value = 0.0  # Opponent wants to *maximize* agent's moves-to-win
+            best_value = -float('inf')  # Opponent wants to *maximize* agent's moves-to-win
 
         # Explore child nodes
         for action in valid_actions:
@@ -191,12 +192,15 @@ class LookaheadAgent:
             except ValueError as e:
                 # This might happen if the action mask was somehow incorrect
                 # or if the step logic has issues not caught by validation.
-                print(f"Warning: Error stepping copied env with action {action} at depth {depth}: {e}")
+                # print(f"Warning: Error stepping copied env with action {action} at depth {depth}: {e}")
                 # Assign worst possible value if simulation fails for this branch
-                value = INF_MOVES if current_player == self.player_id else 0.0
+                raise RuntimeError(f"Error stepping copied env with action {action} at depth {depth}: {e}")
             else:
                 # --- Recursively call minimax ---
-                value = self._minimax_search(child_env_state, depth + 1)
+                new_taken_moves = np.append(taken_moves, action)
+                next_player = child_env_state._current_player # Get the next player after the move
+                value = self._minimax_search(child_env_state, depth + 1, new_taken_moves)
+                print(f"LookaheadAgent: Move sequence {new_taken_moves} evaluated to value {value}")
 
             # --- Update best_value (Minimax logic) ---
             if current_player == self.player_id:
@@ -204,7 +208,8 @@ class LookaheadAgent:
             else:  # Opponent's turn
                 best_value = max(best_value, value)  # Opponent maximizes agent's cost
 
-            # Optional: Alpha-Beta Pruning could be added here for efficiency  # but requires passing alpha and beta values down the recursion.
+        print(
+            f"LookaheadAgent: Current player {current_player} after move sequence {taken_moves} - Best value: {best_value}")
 
         return best_value
 
@@ -222,6 +227,7 @@ class LookaheadAgent:
         start_time = time.time()
         action_mask = info['action_mask']
         valid_actions = np.where(action_mask == 1)[0]
+        print(f"LookaheadAgent: Valid actions: {valid_actions}")
 
         if len(valid_actions) == 0:
             raise RuntimeError("LookaheadAgent.choose_action called with no valid moves!")
@@ -229,8 +235,28 @@ class LookaheadAgent:
             print("LookaheadAgent: Only one valid move, selecting it.")
             return valid_actions[0]  # No need for search
 
+        # if first move, do random selection
+        if np.all(observation['small_boards'] == 0):
+            print("LookaheadAgent: First move, selecting center cell.")
+            return 13 * 27 + 13  # Center cell in the first large board
+
         best_action = -1
-        best_value = INF_MOVES  # Initialize to worst case for the agent
+        best_value = float('inf')  # Start with a high value for minimax
+
+        # --- Quickly select the big cell if needed ---
+        # This is suboptimal solution to the case when all big cells are available
+        # to play and we have more than the standard <= 27 moves to play. To narrow
+        # our search, we can quickly select the big cell using the underlying heuristic
+        # This is a heuristic choice, not a minimax search, but it helps reduce the search space
+        next_large_cell_idx = observation['next_large_cell']
+        if next_large_cell_idx == 27:
+            playable_large_indices = sorted(list(set(a // 27 for a in valid_actions)))
+            print(f"LookaheadAgent: Selecting big cell using heuristic to reduce search space.")
+            large_board = observation["large_board"]
+            chosen_large_idx_target = choose_action_within_board(large_board.copy(), current_player,
+                                                                 playable_large_indices, _lines, rng)
+            valid_actions = np.where(valid_actions // 27 == chosen_large_idx_target)[0]
+            print(f"LookaheadAgent: Masked valid actions to {valid_actions} based on heuristic choice.")
 
         # --- Iterate through possible first moves ---
         for action in valid_actions:
@@ -243,10 +269,9 @@ class LookaheadAgent:
             initial_env_copy._large_board = observation['large_board'].copy()
             initial_env_copy._current_player = observation['current_player']
             initial_env_copy._next_large_cell_idx = observation['next_large_cell']
-            # Recompute mask and terminal state based on copied state (important!)
-            initial_env_copy._action_mask = initial_env_copy._compute_action_mask()  # Need access or reimplement
-            initial_env_copy._is_terminal, initial_env_copy._game_winner = self._check_terminal_status(
-                initial_env_copy)  # Helper needed
+            initial_env_copy._action_mask = action_mask.copy()  # Copy action mask
+            initial_env_copy._game_winner = info['game_winner']  # Copy game winner
+            initial_env_copy._is_terminal = info['game_winner'] is not None  # Set terminal state
 
             # --- Simulate the first move on the copy ---
             try:
@@ -254,11 +279,11 @@ class LookaheadAgent:
                 _, _, _, _, next_info = initial_env_copy.step(action)
             except ValueError as e:
                 print(f"Warning: Error simulating first move {action}: {e}")
-                value = INF_MOVES  # Penalize if simulating the move fails
+                raise RuntimeError(f"Error simulating first move {action}: {e}")
             else:
                 # --- Start the minimax search from the state *after* the first move ---
                 # Depth starts at 1 because we've already made one move
-                value = self._minimax_search(initial_env_copy, depth=1)
+                value = self._minimax_search(initial_env_copy, depth=1, taken_moves=np.array([action]))
 
             print(f"LookaheadAgent: Move {action} evaluated to value: {value}")  # Debugging
 
@@ -282,45 +307,20 @@ class LookaheadAgent:
 
         return best_action
 
-    def _check_terminal_status(self, env_state: SuperTicTacToe3DEnv) -> Tuple[bool, Optional[int]]:
-        """
-        Helper to determine if a copied environment state is terminal.
-        This might require access to env internals or replicating win checks.
-        NOTE: This logic should mirror the termination checks within env.step().
-        """
-        # Check for large board win for either player
-        for player in [PLAYER1, PLAYER2]:
-            large_won, _ = env_state._check_win_or_draw(env_state._large_board, player)
-            if large_won:
-                return True, player
-
-        # Check for draw (no empty cells on large board OR no valid moves left)
-        # Recompute mask needed here based on env_state's current player/next cell
-        current_mask = env_state._compute_action_mask()  # Assumes _compute_action_mask is available
-        if not np.any(current_mask):
-            # Check if large board is full *and* no winner was found above
-            large_drawn = not np.any(env_state._large_board == env_state.EMPTY)
-            if large_drawn:
-                return True, DRAW  # Draw (full board, no winner)
-            else:
-                # No moves left, but board not full? Can happen if remaining cells are blocked. Treat as draw.
-                return True, DRAW
-
-        # Not terminal
-        return False, None
-
 
 # --- Example Usage ---
 if __name__ == '__main__':
+    register_env()
+
+    print_3d_grid_indices()  # Print the index map for reference
     print("\n--- Running Sample Episode (Lookahead Agent vs Heuristic Agent) ---")
 
     # Create the base environment instance
     try:
         # Need render_mode=None for copying, create a separate one for rendering if needed
-        env_for_logic = gym.make('SuperTicTacToe3D-v0', render_mode=None)
+        env_for_logic = SuperTicTacToe3DEnv(render_mode=None)
         # Optional: Create a second env just for rendering the final output
-        render_env = gym.make('SuperTicTacToe3D-v0', render_mode='human')
-        print("Environments created.")
+        render_env = gym.make('SuperTicTacToe3D-v0', render_mode='human')  # print("Environments created.")
     except gym.error.Error as e:
         print(f"Failed to create environment: {e}")
         print("Ensure the environment is registered correctly.")
@@ -370,7 +370,7 @@ if __name__ == '__main__':
             break
 
         print(f"\n--- Step {step_count + 1} ---")
-        render_env.render()  # Render the state *before* the move
+        # render_env.render() # Render the state *before* the move
 
         if current_player == PLAYER1:
             print(f"Player {current_player} (Lookahead) choosing move...")
