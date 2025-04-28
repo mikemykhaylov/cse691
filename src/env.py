@@ -3,53 +3,9 @@ from gymnasium import spaces
 import numpy as np
 from typing import Optional, Tuple, Dict, Any, Union
 
-# def _get_winning_lines_3x3x3():
-#     """Generates all winning lines (indices 0-26) for a 3x3x3 cube."""
-#     lines = np.empty((0, 3), dtype=np.int8)
-
-#     # Helper to convert 3D coords (x, y, z) to 1D index
-#     def to_1d(x, y, z):
-#         return x + y * 3 + z * 9
-
-#     # 1. Axis-aligned lines (X, Y, Z) - 9 lines per direction = 27 total
-#     for y in range(3):
-#         for z in range(3):
-#             lines = np.vstack([lines, [to_1d(0, y, z), to_1d(1, y, z), to_1d(2, y, z)]])  # X direction
-#     for x in range(3):
-#         for z in range(3):
-#             lines = np.vstack([lines, [to_1d(x, 0, z), to_1d(x, 1, z), to_1d(x, 2, z)]])  # Y direction
-#     for x in range(3):
-#         for y in range(3):
-#             lines = np.vstack([lines, [to_1d(x, y, 0), to_1d(x, y, 1), to_1d(x, y, 2)]])  # Z direction
-
-#     # 2. Planar diagonals (XY, XZ, YZ planes) - 2 diagonals per slice * 3 slices per direction = 18 total
-#     # XY plane diagonals (varying z)
-#     for z in range(3):
-#         lines = np.vstack([lines, [to_1d(0, 0, z), to_1d(1, 1, z), to_1d(2, 2, z)]])
-#         lines = np.vstack([lines, [to_1d(0, 2, z), to_1d(1, 1, z), to_1d(2, 0, z)]])
-#     # XZ plane diagonals (varying y)
-#     for y in range(3):
-#         lines = np.vstack([lines, [to_1d(0, y, 0), to_1d(1, y, 1), to_1d(2, y, 2)]])
-#         lines = np.vstack([lines, [to_1d(0, y, 2), to_1d(1, y, 1), to_1d(2, y, 0)]])
-#     # YZ plane diagonals (varying x)
-#     for x in range(3):
-#         lines = np.vstack([lines, [to_1d(x, 0, 0), to_1d(x, 1, 1), to_1d(x, 2, 2)]])
-#         lines = np.vstack([lines, [to_1d(x, 0, 2), to_1d(x, 1, 1), to_1d(x, 2, 0)]])
-
-#     # 3. Space diagonals - 4 total
-#     lines = np.vstack([lines, [to_1d(0, 0, 0), to_1d(1, 1, 1), to_1d(2, 2, 2)]])
-#     lines = np.vstack([lines, [to_1d(0, 0, 2), to_1d(1, 1, 1), to_1d(2, 2, 0)]])
-#     lines = np.vstack([lines, [to_1d(0, 2, 0), to_1d(1, 1, 1), to_1d(2, 0, 2)]])
-#     lines = np.vstack([lines, [to_1d(2, 0, 0), to_1d(1, 1, 1), to_1d(0, 2, 2)]])
-
-#     assert lines.shape[0] == 27 + 18 + 4 == 49, f"Expected 49 lines, found {len(lines)}"
-#     # sort each lines and return
-#     return np.sort(lines)
-
-
 def _get_winning_lines_3x3x3():
     """Generates all winning lines (indices 0-26) for a 3x3x3 cube."""
-    lines = []
+    lines = np.empty((0, 3), dtype=np.int8)
 
     # Helper to convert 3D coords (x, y, z) to 1D index
     def to_1d(x, y, z):
@@ -58,37 +14,37 @@ def _get_winning_lines_3x3x3():
     # 1. Axis-aligned lines (X, Y, Z) - 9 lines per direction = 27 total
     for y in range(3):
         for z in range(3):
-            lines.append([to_1d(0, y, z), to_1d(1, y, z), to_1d(2, y, z)])  # X direction
+            lines = np.vstack([lines, [to_1d(0, y, z), to_1d(1, y, z), to_1d(2, y, z)]])  # X direction
     for x in range(3):
         for z in range(3):
-            lines.append([to_1d(x, 0, z), to_1d(x, 1, z), to_1d(x, 2, z)])  # Y direction
+            lines = np.vstack([lines, [to_1d(x, 0, z), to_1d(x, 1, z), to_1d(x, 2, z)]])  # Y direction
     for x in range(3):
         for y in range(3):
-            lines.append([to_1d(x, y, 0), to_1d(x, y, 1), to_1d(x, y, 2)])  # Z direction
+            lines = np.vstack([lines, [to_1d(x, y, 0), to_1d(x, y, 1), to_1d(x, y, 2)]])  # Z direction
 
     # 2. Planar diagonals (XY, XZ, YZ planes) - 2 diagonals per slice * 3 slices per direction = 18 total
     # XY plane diagonals (varying z)
     for z in range(3):
-        lines.append([to_1d(0, 0, z), to_1d(1, 1, z), to_1d(2, 2, z)])
-        lines.append([to_1d(0, 2, z), to_1d(1, 1, z), to_1d(2, 0, z)])
+        lines = np.vstack([lines, [to_1d(0, 0, z), to_1d(1, 1, z), to_1d(2, 2, z)]])
+        lines = np.vstack([lines, [to_1d(0, 2, z), to_1d(1, 1, z), to_1d(2, 0, z)]])
     # XZ plane diagonals (varying y)
     for y in range(3):
-        lines.append([to_1d(0, y, 0), to_1d(1, y, 1), to_1d(2, y, 2)])
-        lines.append([to_1d(0, y, 2), to_1d(1, y, 1), to_1d(2, y, 0)])
+        lines = np.vstack([lines, [to_1d(0, y, 0), to_1d(1, y, 1), to_1d(2, y, 2)]])
+        lines = np.vstack([lines, [to_1d(0, y, 2), to_1d(1, y, 1), to_1d(2, y, 0)]])
     # YZ plane diagonals (varying x)
     for x in range(3):
-        lines.append([to_1d(x, 0, 0), to_1d(x, 1, 1), to_1d(x, 2, 2)])
-        lines.append([to_1d(x, 0, 2), to_1d(x, 1, 1), to_1d(x, 2, 0)])
+        lines = np.vstack([lines, [to_1d(x, 0, 0), to_1d(x, 1, 1), to_1d(x, 2, 2)]])
+        lines = np.vstack([lines, [to_1d(x, 0, 2), to_1d(x, 1, 1), to_1d(x, 2, 0)]])
 
     # 3. Space diagonals - 4 total
-    lines.append([to_1d(0, 0, 0), to_1d(1, 1, 1), to_1d(2, 2, 2)])
-    lines.append([to_1d(0, 0, 2), to_1d(1, 1, 1), to_1d(2, 2, 0)])
-    lines.append([to_1d(0, 2, 0), to_1d(1, 1, 1), to_1d(2, 0, 2)])
-    lines.append([to_1d(2, 0, 0), to_1d(1, 1, 1), to_1d(0, 2, 2)])
+    lines = np.vstack([lines, [to_1d(0, 0, 0), to_1d(1, 1, 1), to_1d(2, 2, 2)]])
+    lines = np.vstack([lines, [to_1d(0, 0, 2), to_1d(1, 1, 1), to_1d(2, 2, 0)]])
+    lines = np.vstack([lines, [to_1d(0, 2, 0), to_1d(1, 1, 1), to_1d(2, 0, 2)]])
+    lines = np.vstack([lines, [to_1d(2, 0, 0), to_1d(1, 1, 1), to_1d(0, 2, 2)]])
 
-    assert len(lines) == 27 + 18 + 4 == 49, f"Expected 49 lines, found {len(lines)}"
-    return [tuple(sorted(line)) for line in lines]  # Use tuples for set operations if needed
-
+    assert lines.shape[0] == 27 + 18 + 4 == 49, f"Expected 49 lines, found {len(lines)}"
+    # sort each lines and return
+    return np.sort(lines)
 
 class SuperTicTacToe3DEnv(gym.Env):
     """

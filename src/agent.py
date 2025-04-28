@@ -20,7 +20,7 @@ PLAYER2 = 2
 DRAW = 3
 CENTER_INDEX_3D = 13 # The index of the center cell (1,1,1) in a 3x3x3 grid (1 + 1*3 + 1*9 = 13)
 
-def _check_lines(board_1d: np.ndarray, player: int, lines: List[Tuple[int, ...]]) -> List[Tuple[int, int]]:
+def _check_lines(board_1d: np.ndarray, player: int, lines: List[Tuple[int, ...]]) -> List[int]:
     """
     Finds lines where the player has exactly two marks and the third cell is empty.
     Args:
@@ -31,38 +31,29 @@ def _check_lines(board_1d: np.ndarray, player: int, lines: List[Tuple[int, ...]]
         List of tuples: (empty_cell_index, count) where count is 2 (meaning a winning opportunity).
                        Returns empty list if no such lines found.
     """
-    potential_wins = []
-    for line in lines:
-        player_marks = 0
-        empty_cell = -1
-        valid_line = True
-        for cell_idx in line:
-            if board_1d[cell_idx] == player:
-                player_marks += 1
-            elif board_1d[cell_idx] == EMPTY:
-                if empty_cell != -1: # More than one empty cell
-                   valid_line = False
-                   break
-                empty_cell = cell_idx
-            else: # Opponent's mark is in the line
-                valid_line = False
-                break
+    # return potential_wins
+    triplet_vals = board_1d[lines]
+    count_player = np.sum(triplet_vals == player, axis=1)
+    count_empty = np.sum(triplet_vals == EMPTY, axis=1)
 
-        if valid_line and player_marks == 2 and empty_cell != -1:
-            potential_wins.append((empty_cell, 2)) # Index of cell to play for win
+    mask = (count_player == 2) & (count_empty == 1)
+    matching_triplet_vals = triplet_vals[mask]  # (M, 3)
+    matching_triplet_indices = lines[mask]         # (M, 3)
+    if len(matching_triplet_vals) == 0:
+        return []
+    empty_locations_mask = (matching_triplet_vals == EMPTY)
+    empty_value_indices = matching_triplet_indices[empty_locations_mask]
 
-    return potential_wins
+    return empty_value_indices
 
 def check_immediate_win(board_1d: np.ndarray, player: int, lines: List[Tuple[int, ...]]) -> List[int]:
     """Returns a list of moves (indices) that immediately win for the player."""
-    wins = _check_lines(board_1d, player, lines)
-    return [move[0] for move in wins] # Return only the indices
+    return _check_lines(board_1d, player, lines)
 
 def check_block(board_1d: np.ndarray, player: int, lines: List[Tuple[int, ...]]) -> List[int]:
     """Returns a list of moves (indices) that block the opponent's immediate win."""
     opponent = PLAYER1 if player == PLAYER2 else PLAYER2
-    blocks = _check_lines(board_1d, opponent, lines)
-    return [move[0] for move in blocks] # Return only the indices
+    return _check_lines(board_1d, opponent, lines)
 
 def check_fork(board_1d: np.ndarray, player: int, lines: List[Tuple[int, ...]]) -> List[int]:
     """
@@ -173,7 +164,7 @@ def choose_action_heuristic(
                   # Now check if winning l_idx wins the *overall game*
                   temp_large_board = large_board.copy()
                   temp_large_board[l_idx] = current_player # Simulate winning the large cell
-                  if check_immediate_win(temp_large_board, current_player, lines):
+                  if len(check_immediate_win(temp_large_board, current_player, lines)) > 0:
                       # Yes, winning l_idx wins the game. Store all small moves that do this.
                       for small_win_idx in actual_small_wins:
                           winning_large_moves.append((l_idx, small_win_idx))

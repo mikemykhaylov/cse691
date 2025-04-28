@@ -51,7 +51,7 @@ class LookaheadAgent:
         self._lines = _lines  # Use precomputed lines
 
         # Check if required functions/classes are available
-        if not _lines:
+        if _lines is None:
             print("Warning: Winning lines data seems missing.")
         if 'choose_action_heuristic' not in globals() or not callable(choose_action_heuristic):
             raise RuntimeError("Heuristic function 'choose_action_heuristic' not available.")
