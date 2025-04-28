@@ -326,6 +326,7 @@ if __name__ == '__main__':
 
     # Use a fixed seed for reproducibility
     seed = 123
+    print(f"Seed: {seed}")
     observation, info = env_for_logic.reset(seed=seed)
     # Also reset the render env to sync state initially
     render_env.reset(seed=seed)
