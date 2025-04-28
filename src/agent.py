@@ -1,3 +1,5 @@
+import argparse
+from tqdm import tqdm
 import gymnasium as gym
 import numpy as np
 from typing import Optional, Tuple, Dict, Any, List
@@ -257,64 +259,100 @@ def choose_action_heuristic(
 
 # --- Example Usage with Heuristic Agent ---
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Run Super TicTacToe 3D simulation")
+    parser.add_argument('-n', '--num_episodes', type=int, default=1,
+                        help='Number of episodes to run')
+    parser.add_argument('--no_render', action='store_true',
+                        help='Disable rendering (faster for multiple episodes)')
+    parser.add_argument('--seed', type=int, default=42,
+                        help='Random seed for reproducibility')
+    args = parser.parse_args()
+
     # Ensure environment is registered if not already
     register_env()
     print_3d_grid_indices() # Print the index map for reference
 
-    print("\n--- Running Sample Episode (Heuristic Agent vs Random Agent) ---")
-    # Use the registered ID
-    env = gym.make('SuperTicTacToe3D-v0', render_mode='human')
+    # Track statistics across episodes
+    wins_heuristic = 0
+    wins_random = 0
+    draws = 0
 
-    # Use a fixed seed for reproducibility during testing
-    seed = 42
-    obs, info = env.reset(seed=seed)
-    # Use the environment's RNG for agent choices as well
-    rng = env.np_random
+    for episode in tqdm(range(args.num_episodes), desc="Episodes", unit="episode"):
+        # Use the registered ID
+        render_mode = None if args.no_render else 'human'
+        env = gym.make('SuperTicTacToe3D-v0', render_mode=render_mode)
 
+        # Use a fixed seed + episode offset for reproducibility
+        episode_seed = args.seed + episode
+        obs, info = env.reset(seed=episode_seed)
+        # Use the environment's RNG for agent choices as well
+        rng = env.np_random
 
-    terminated = False
-    truncated = False
-    step_count = 0
+        print(f"\n--- Running Episode {episode+1}/{args.num_episodes} (Seed: {episode_seed}) ---")
 
-    while not terminated and not truncated:
-        action_mask = info['action_mask']
-        current_player = obs['current_player']
+        terminated = False
+        truncated = False
+        step_count = 0
 
-        # Choose action based on player
-        if current_player == PLAYER1:
-            # Player 1 uses the heuristic strategy
-            action = choose_action_heuristic(obs, info, _winning_lines, rng)
-            agent_type = "Heuristic (P1)"
-        else:
-            # Player 2 uses the random strategy (from original example)
-            valid_actions = np.where(action_mask == 1)[0]
-            if len(valid_actions) == 0:
-                print("No valid actions available for Random Agent! Should be terminal.")
-                break
-            action = rng.choice(valid_actions) # Use env's RNG
-            agent_type = "Random (P2)"
+        while not terminated and not truncated:
+            action_mask = info['action_mask']
+            current_player = obs['current_player']
 
+            # Choose action based on player
+            if current_player == PLAYER1:
+                # Player 1 uses the heuristic strategy
+                action = choose_action_heuristic(obs, info, _winning_lines, rng)
+                agent_type = "Heuristic (P1)"
+            else:
+                # Player 2 uses the random strategy (from original example)
+                valid_actions = np.where(action_mask == 1)[0]
+                if len(valid_actions) == 0:
+                    print("No valid actions available for Random Agent! Should be terminal.")
+                    break
+                action = rng.choice(valid_actions) # Use env's RNG
+                agent_type = "Random (P2)"
 
-        print(f"\n--- Step {step_count + 1} ---")
-        large_act_idx = action // 27
-        small_act_idx = action % 27
-        print(f"Agent: {agent_type} (Player {current_player})")
-        print(f"Plays action {action} (Large Cell: {large_act_idx} ({large_act_idx%3}, {(large_act_idx//3)%3}, {large_act_idx//9}), Small Cell: {small_act_idx} ({small_act_idx%3}, {(small_act_idx//3)%3}, {small_act_idx//9}))")
+            if episode == 0 or not args.no_render:
+                print(f"\n--- Step {step_count + 1} ---")
+                large_act_idx = action // 27
+                small_act_idx = action % 27
+                print(f"Agent: {agent_type} (Player {current_player})")
+                print(f"Plays action {action} (Large Cell: {large_act_idx} ({large_act_idx%3}, {(large_act_idx//3)%3}, {large_act_idx//9}), Small Cell: {small_act_idx} ({small_act_idx%3}, {(small_act_idx//3)%3}, {small_act_idx//9}))")
 
-        obs, reward, terminated, truncated, info = env.step(action)
-        step_count += 1
+            obs, reward, terminated, truncated, info = env.step(action)
+            step_count += 1
 
-        print(f"Reward (to player who moved): {reward}") # Reward is +/-1 for the player who just moved if game ends
-        print(f"Terminated: {terminated}, Truncated: {truncated}")
-        # Render is called inside step when render_mode='human'
+            if episode == 0 or not args.no_render:
+                print(f"Reward (to player who moved): {reward}") # Reward is +/-1 for the player who just moved if game ends
+                print(f"Terminated: {terminated}, Truncated: {truncated}")
+                # Render is called inside step when render_mode='human'
 
-        if terminated:
-            print("\n--- Game Over ---")
-            winner = info['game_winner']
-            if winner == 1: print("Winner: Player 1 (X) - Heuristic")
-            elif winner == 2: print("Winner: Player 2 (O) - Random")
-            elif winner == 0: print("Result: Draw")
-            else: print("Result: Unknown (Error?)")
-            print(f"Total steps: {step_count}")
+            if terminated:
+                winner = info['game_winner']
 
-    env.close()
+                # Update statistics
+                if winner == PLAYER1:
+                    wins_heuristic += 1
+                    result_str = "Winner: Player 1 (X) - Heuristic"
+                elif winner == PLAYER2:
+                    wins_random += 1
+                    result_str = "Winner: Player 2 (O) - Random"
+                elif winner == DRAW:
+                    draws += 1
+                    result_str = "Result: Draw"
+                else:
+                    result_str = "Result: Unknown (Error?)"
+
+                print(f"\n--- Game Over (Episode {episode+1}) ---")
+                print(result_str)
+                print(f"Total steps: {step_count}")
+
+        env.close()
+
+    # Print summary statistics
+    if args.num_episodes > 1:
+        print("\n=== Summary Statistics ===")
+        print(f"Total Episodes: {args.num_episodes}")
+        print(f"Heuristic Agent (P1) Wins: {wins_heuristic} ({wins_heuristic/args.num_episodes:.2%})")
+        print(f"Random Agent (P2) Wins: {wins_random} ({wins_random/args.num_episodes:.2%})")
+        print(f"Draws: {draws} ({draws/args.num_episodes:.2%})")
