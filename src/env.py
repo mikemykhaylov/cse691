@@ -214,11 +214,16 @@ class SuperTicTacToe3DEnv(gym.Env):
                 # Let's recompute as if play is anywhere
                 print(
                     f"Warning: Player {self._current_player} forced to play in finished large cell {large_idx}. Allowing play anywhere.")
-                for l_idx in range(27):
-                    if self._large_board[l_idx] == self.EMPTY:
-                        for s_idx in range(27):
-                            if self._small_boards[l_idx, s_idx] == self.EMPTY:
-                                mask[l_idx * 27 + s_idx] = 1
+                # for l_idx in range(27):
+                #     if self._large_board[l_idx] == self.EMPTY:
+                #         for s_idx in range(27):
+                #             if self._small_boards[l_idx, s_idx] == self.EMPTY:
+                #                 mask[l_idx * 27 + s_idx] = 1
+                # Dump the entire state and exit
+                self._render_human()
+                raise ValueError(
+                    f"Player {self._current_player} forced to play in finished large cell {large_idx}. "
+                )
 
         return mask
 
@@ -314,6 +319,14 @@ class SuperTicTacToe3DEnv(gym.Env):
                 self._game_winner = 0  # Draw
                 reward = 0.0
 
+        # Determine where the next player must play
+        next_large_forced_idx = small_idx  # Based on the small cell just played
+        if self._large_board[next_large_forced_idx] == self.EMPTY:
+            self._next_large_cell_idx = next_large_forced_idx
+        else:
+            # The target large cell is finished (won or drawn), player can go anywhere
+            self._next_large_cell_idx = 27
+
         # Check for draw condition even if no small board was won this turn
         # (i.e., the last playable cell was filled, resulting in a draw)
         if not terminated and not np.any(self._compute_action_mask()):  # Recompute mask for next player
@@ -327,7 +340,6 @@ class SuperTicTacToe3DEnv(gym.Env):
                 # The most robust check is if the *next* action mask is all zeros.
 
                 # Re-calculate potential next player's mask
-                potential_next_player = self.PLAYER1 if self._current_player == self.PLAYER2 else self.PLAYER2
                 potential_next_large_idx = small_idx  # Where the next player *would* be sent
 
                 # Determine where the next player *must* play
@@ -360,14 +372,6 @@ class SuperTicTacToe3DEnv(gym.Env):
         if not terminated:
             # Switch player
             self._current_player = self.PLAYER1 if self._current_player == self.PLAYER2 else self.PLAYER2
-
-            # Determine where the next player must play
-            next_large_forced_idx = small_idx  # Based on the small cell just played
-            if self._large_board[next_large_forced_idx] == self.EMPTY:
-                self._next_large_cell_idx = next_large_forced_idx
-            else:
-                # The target large cell is finished (won or drawn), player can go anywhere
-                self._next_large_cell_idx = 27
 
             # Compute action mask for the *new* current player
             self._action_mask = self._compute_action_mask()
