@@ -190,15 +190,16 @@ class SuperTicTacToe3DEnv(gym.Env):
         can_play_anywhere = (self._next_large_cell_idx == 27)
 
         if can_play_anywhere:
-            # Find large boards that are not finished (EMPTY)
-            playable_large_indices = np.where(self._large_board == self.EMPTY)[0]
+            playable_large_indices = np.flatnonzero(self._large_board == self.EMPTY)
             # Find empty small cells within those playable large boards
-            empty_small_cells = (self._small_boards[playable_large_indices] == self.EMPTY)
-            # Iterate only through the playable large boards to set the mask
-            for i, large_idx in enumerate(playable_large_indices):
-                valid_small_indices = np.where(empty_small_cells[i])[0]
-                if valid_small_indices.size > 0: # Check if there are any valid moves
-                    mask[large_idx * 27 + valid_small_indices] = 1
+            empty_small_cells = np.empty((0,), dtype=np.int8)
+
+            for large_idx in playable_large_indices:
+                valid_small_indices = np.flatnonzero(self._small_boards[large_idx] == self.EMPTY)
+                if valid_small_indices.size > 0:
+                    empty_small_cells = np.concatenate((empty_small_cells, valid_small_indices + large_idx * 27))
+
+            mask[empty_small_cells] = 1
         else:
             # Forced to play in a specific large cell
             large_idx = self._next_large_cell_idx
