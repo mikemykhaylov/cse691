@@ -264,7 +264,7 @@ class LookaheadAgent:
         next_large_cell_idx = observation['next_large_cell']
         if next_large_cell_idx == 27:
             playable_large_indices = sorted(list(set(a // 27 for a in valid_actions)))
-            print(f"LookaheadAgent: Selecting big cell using heuristic to reduce search space.")
+            print("LookaheadAgent: Selecting big cell using heuristic to reduce search space.")
             large_board = observation["large_board"]
             chosen_large_idx_target = choose_action_within_board(large_board.copy(), current_player,
                                                                  playable_large_indices, _lines, rng)
