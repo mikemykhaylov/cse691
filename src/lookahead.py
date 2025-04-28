@@ -11,28 +11,6 @@ from src.agent import choose_action_heuristic, choose_action_within_board
 from src.env import SuperTicTacToe3DEnv, _get_winning_lines_3x3x3, print_3d_grid_indices, register_env
 
 _lines = _get_winning_lines_3x3x3()  # Get winning lines once
-print("Successfully imported environment and heuristic agent.")
-
-# --- Assumed Imports (Place these in your actual file structure) ---
-# try:
-#     # Assuming your environment file is src/env.py
-#     from src.env import SuperTicTacToe3DEnv, _get_winning_lines_3x3x3
-#     # Assuming your heuristic agent file is src.agent.py
-#     from src.agent import choose_action_heuristic
-#     _lines = _get_winning_lines_3x3x3() # Get winning lines once
-#     print("Successfully imported environment and heuristic agent.")
-# except ImportError as e:
-#     print(f"Import Error: {e}")
-#     print("Please ensure 'src/env.py' and 'src/agent.py' exist and contain")
-#     print("SuperTicTacToe3DEnv, _get_winning_lines_3x3x3, and choose_action_heuristic.")
-#     # Define dummy functions/classes if imports fail, so the rest can be parsed
-#     class SuperTicTacToe3DEnv: pass
-#     def _get_winning_lines_3x3x3(): return []
-#     def choose_action_heuristic(*args, **kwargs): return 0
-#     _lines = []
-#     # Exit or raise an error if essential components are missing
-#     # raise ImportError("Could not load necessary environment/agent components.") from e
-
 
 # Constants (can be fetched from env instance if needed)
 PLAYER1 = 1
@@ -163,8 +141,7 @@ class LookaheadAgent:
         action_mask = info['action_mask']
         valid_actions = np.where(action_mask == 1)[0]
 
-        print(
-            f"LookaheadAgent: Exploring move subsequence {taken_moves} at depth {depth}, current player {current_player}.")
+        print(f"LookaheadAgent: Exploring move subsequence {taken_moves} at depth {depth}, current player {current_player}.")
 
         if len(valid_actions) == 0:
             # Game ends here unexpectedly (should have been caught by _is_terminal)
@@ -208,7 +185,6 @@ class LookaheadAgent:
             else:
                 # --- Recursively call minimax ---
                 new_taken_moves = np.append(taken_moves, action)
-                next_player = child_env_state._current_player # Get the next player after the move
                 value = self._minimax_search(child_env_state, depth + 1, new_taken_moves)
                 print(f"LookaheadAgent: Move sequence {new_taken_moves} evaluated to value {value}")
 
@@ -218,8 +194,7 @@ class LookaheadAgent:
             else:  # Opponent's turn
                 best_value = max(best_value, value)  # Opponent maximizes agent's cost
 
-        print(
-            f"LookaheadAgent: Current player {current_player} after move sequence {taken_moves} - Best value: {best_value}")
+        print(f"LookaheadAgent: Current player {current_player} after move sequence {taken_moves} - Best value: {best_value}")
 
         return best_value
 
