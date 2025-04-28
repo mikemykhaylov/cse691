@@ -5,6 +5,8 @@ from typing import Dict, Any, Optional
 import gymnasium as gym
 import numpy as np
 from numpy import ndarray
+import multiprocessing as mp
+from functools import partial
 
 # Assuming your heuristic agent file is src.agent.py
 from src.agent import choose_action_heuristic, choose_action_within_board
@@ -198,6 +200,32 @@ class LookaheadAgent:
 
         return best_value
 
+    # --- Iterate through possible first moves using multiprocessing ---
+    def evaluate_action(self, action, template_env, observation, action_mask, info):
+        """Helper function to evaluate a single action in a separate process"""
+        try:
+            # Create a copy of the initial state
+            initial_env_copy = copy.deepcopy(template_env)
+            # Manually set the state of the copy to match the current observation/info
+            initial_env_copy._small_boards = observation['small_boards'].copy()
+            initial_env_copy._large_board = observation['large_board'].copy()
+            initial_env_copy._current_player = observation['current_player']
+            initial_env_copy._next_large_cell_idx = observation['next_large_cell']
+            initial_env_copy._action_mask = action_mask.copy()
+            initial_env_copy._game_winner = info['game_winner']
+            initial_env_copy._is_terminal = info['game_winner'] is not None
+
+            # Simulate the first move
+            _, _, _, _, next_info = initial_env_copy.step(action)
+
+            # Start the minimax search from the state after the first move
+            value = self._minimax_search(initial_env_copy, depth=1, taken_moves=np.array([action]))
+            print(f"LookaheadAgent: Move {action} evaluated to value: {value}")
+            return action, value
+        except Exception as e:
+            print(f"Warning: Error processing action {action}: {e}")
+            return action, float('inf')  # Return worst possible value on error
+
     def choose_action(self, observation: Dict[str, Any], info: Dict[str, Any]) -> int:
         """
         Chooses the best action based on N-step lookahead minimax search.
@@ -243,35 +271,17 @@ class LookaheadAgent:
             valid_actions = valid_actions[np.where(valid_actions // 27 == chosen_large_idx_target)[0]]
             print(f"LookaheadAgent: Masked valid actions to {valid_actions} based on heuristic choice.")
 
-        # --- Iterate through possible first moves ---
-        for action in valid_actions:
-            # --- Create a copy of the *initial* state for each first move ---
-            # This uses the template env stored during init, then applies current state
-            # This is safer than copying the potentially modified 'real' env instance
-            initial_env_copy = copy.deepcopy(self._env_template)
-            # Manually set the state of the copy to match the current observation/info
-            initial_env_copy._small_boards = observation['small_boards'].copy()
-            initial_env_copy._large_board = observation['large_board'].copy()
-            initial_env_copy._current_player = observation['current_player']
-            initial_env_copy._next_large_cell_idx = observation['next_large_cell']
-            initial_env_copy._action_mask = action_mask.copy()  # Copy action mask
-            initial_env_copy._game_winner = info['game_winner']  # Copy game winner
-            initial_env_copy._is_terminal = info['game_winner'] is not None  # Set terminal state
+        # Create a pool of workers
+        with mp.Pool(processes=min(mp.cpu_count(), len(valid_actions))) as pool:
+            # Create a partial function with fixed arguments
+            eval_func = partial(self.evaluate_action, template_env=self._env_template, observation=observation,
+                action_mask=action_mask, info=info)
 
-            # --- Simulate the first move on the copy ---
-            try:
-                # We only need the state transition for the search
-                _, _, _, _, next_info = initial_env_copy.step(action)
-            except ValueError as e:
-                print(f"Warning: Error simulating first move {action}: {e}")
-                raise RuntimeError(f"Error simulating first move {action}: {e}")
-            else:
-                # --- Start the minimax search from the state *after* the first move ---
-                # Depth starts at 1 because we've already made one move
-                value = self._minimax_search(initial_env_copy, depth=1, taken_moves=np.array([action]))
+            # Submit all actions to be evaluated in parallel
+            results = pool.map(eval_func, valid_actions)
 
-            print(f"LookaheadAgent: Move {action} evaluated to value: {value}")  # Debugging
-
+        # Process results to find the best action
+        for action, value in results:
             # --- Update best action ---
             # We want the action that leads to the minimum value (fastest win)
             if value < best_value:
