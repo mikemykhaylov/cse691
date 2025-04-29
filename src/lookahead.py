@@ -157,7 +157,7 @@ class LookaheadAgent:
         action_mask = info['action_mask']
         valid_actions = np.where(action_mask == 1)[0]
 
-        print(f"LookaheadAgent: Exploring move subsequence {taken_moves} at depth {depth}, current player {current_player}.")
+        # print(f"LookaheadAgent: Exploring move subsequence {taken_moves} at depth {depth}, current player {current_player}.")
 
         if len(valid_actions) == 0:
             # Game ends here unexpectedly (should have been caught by _is_terminal)
@@ -202,7 +202,7 @@ class LookaheadAgent:
                 # --- Recursively call minimax ---
                 new_taken_moves = np.append(taken_moves, action)
                 value = self._minimax_search(child_env_state, depth + 1, new_taken_moves)
-                print(f"LookaheadAgent: Move sequence {new_taken_moves} evaluated to value {value}")
+                # print(f"LookaheadAgent: Move sequence {new_taken_moves} evaluated to value {value}")
 
             # --- Update best_value (Minimax logic) ---
             if current_player == self.player_id:
@@ -210,7 +210,7 @@ class LookaheadAgent:
             else:  # Opponent's turn
                 best_value = min(best_value, value)  # Opponent minimizes
 
-        print(f"LookaheadAgent: Current player {current_player} after move sequence {taken_moves} - Best value: {best_value}")
+        # print(f"LookaheadAgent: Current player {current_player} after move sequence {taken_moves} - Best value: {best_value}")
 
         return best_value
 
@@ -234,7 +234,7 @@ class LookaheadAgent:
 
             # Start the minimax search from the state after the first move
             value = self._minimax_search(initial_env_copy, depth=1, taken_moves=np.array([action]))
-            print(f"LookaheadAgent: Move {action} evaluated to value: {value}")
+            # print(f"LookaheadAgent: Move {action} evaluated to value: {value}")
             return action, value
         except Exception as e:
             print(f"Warning: Error processing action {action}: {e}")
@@ -254,7 +254,7 @@ class LookaheadAgent:
         start_time = time.time()
         action_mask = info['action_mask']
         valid_actions = np.where(action_mask == 1)[0]
-        print(f"LookaheadAgent: Valid actions: {valid_actions}")
+        # print(f"LookaheadAgent: Valid actions: {valid_actions}")
 
         if len(valid_actions) == 0:
             raise RuntimeError("LookaheadAgent.choose_action called with no valid moves!")
