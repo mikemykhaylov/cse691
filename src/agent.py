@@ -198,7 +198,7 @@ def choose_action_heuristic(
 
         else:
             # 2. No immediate game win available. Pick a random available large cell.
-            target_large_idx = rng.choice(playable_large_indices)
+            target_large_idx = choose_action_within_board(large_board.copy(), current_player, playable_large_indices, lines, rng)
             # Fall through to Case 1 logic below
 
     else: # Case 1: Forced to play in a specific big cell
