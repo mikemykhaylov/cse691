@@ -325,14 +325,14 @@ if __name__ == '__main__':
     register_env()
 
     print_3d_grid_indices()  # Print the index map for reference
-    print("\n--- Running Sample Episode (Lookahead Agent vs Heuristic Agent) ---")
+    print("\n--- Running 100 Episodes (Lookahead Agent vs Heuristic Agent) ---")
 
     # Create the base environment instance
     try:
         # Need render_mode=None for copying, create a separate one for rendering if needed
         env_for_logic = SuperTicTacToe3DEnv(render_mode=None)
-        # Optional: Create a second env just for rendering the final output
-        render_env = gym.make('SuperTicTacToe3D-v0', render_mode='human')  # print("Environments created.")
+        # We don't need rendering for batch runs
+        # render_env = gym.make('SuperTicTacToe3D-v0', render_mode='human')
     except gym.error.Error as e:
         print(f"Failed to create environment: {e}")
         print("Ensure the environment is registered correctly.")
@@ -341,99 +341,114 @@ if __name__ == '__main__':
         print("SuperTicTacToe3DEnv class not found. Imports failed.")
         exit()
 
-    # Use a fixed seed for reproducibility
-    seed = 123
-    print(f"Seed: {seed}")
-    observation, info = env_for_logic.reset(seed=seed)
-    # Also reset the render env to sync state initially
-    render_env.reset(seed=seed)
-
-    # Use the environment's RNG for agents
-    rng = env_for_logic.np_random
+    # Track results
+    results = {
+        "player1_wins": 0,
+        "player2_wins": 0,
+        "draws": 0,
+        "total_steps": 0
+    }
 
     # Create Agents
     LOOKAHEAD_DEPTH = 2  # Set the desired lookahead depth (e.g., 2 or 3)
-    try:
-        player1_agent = LookaheadAgent(player_id=PLAYER1, lookahead_depth=LOOKAHEAD_DEPTH,
-                                       env_for_copying=env_for_logic, rng=rng)
-        # Player 2 uses the heuristic agent (needs RNG)
-        # We don't instantiate it as a class, just use the function
-        player2_agent_func = choose_action_heuristic
-        print(f"Agents created: P1=Lookahead(n={LOOKAHEAD_DEPTH}), P2=Heuristic.")
 
-    except Exception as e:
-        print(f"Failed to create agents: {e}")
-        exit()
+    # Run 100 games
+    NUM_GAMES = 10
 
-    terminated = False
-    truncated = False
-    step_count = 0
-    max_steps = 729 + 10  # Safety limit
+    for game_num in range(NUM_GAMES):
+        print(f"\n=== Starting Game {game_num+1}/{NUM_GAMES} ===")
 
-    while not terminated and not truncated and step_count < max_steps:
-        current_player = observation['current_player']
-        action_mask = info['action_mask']
-        valid_actions = np.where(action_mask == 1)[0]
+        # Use a different seed for each game
+        seed = np.random.randint(0, 2**32 - 1)
+        print(f"Seed: {seed}")
+        observation, info = env_for_logic.reset(seed=seed)
 
-        if len(valid_actions) == 0:
-            print("No valid actions available! Environment state likely terminal.")
-            # Double check terminal status from env
-            terminated = env_for_logic._is_terminal
-            info = env_for_logic._get_info()  # Get final info
-            break
+        # Use the environment's RNG for agents
+        rng = env_for_logic.np_random
 
-        print(f"\n--- Step {step_count + 1} ---")
-        # render_env.render() # Render the state *before* the move
+        try:
+            player1_agent = LookaheadAgent(player_id=PLAYER1, lookahead_depth=LOOKAHEAD_DEPTH,
+                                           env_for_copying=env_for_logic, rng=rng)
+            # Player 2 uses the heuristic agent (needs RNG)
+            player2_agent_func = choose_action_heuristic
+            print(f"Agents created: P1=Lookahead(n={LOOKAHEAD_DEPTH}), P2=Heuristic.")
 
-        if current_player == PLAYER1:
-            print(f"Player {current_player} (Lookahead) choosing move...")
-            action = player1_agent.choose_action(observation, info)
-            agent_type = f"Lookahead(n={LOOKAHEAD_DEPTH})"
-        else:  # Player 2
-            print(f"Player {current_player} (Heuristic) choosing move...")
-            # Call the heuristic function directly
-            action = player2_agent_func(observation, info, _lines, rng)
-            agent_type = "Heuristic"
+        except Exception as e:
+            print(f"Failed to create agents: {e}")
+            exit()
 
-        # --- Validate chosen action (important sanity check) ---
-        if action not in valid_actions:
-            print(f"CRITICAL ERROR: Agent {agent_type} chose invalid action {action}!")
-            print(f"Valid actions were: {valid_actions}")
-            print("Choosing random valid action instead.")
-            action = rng.choice(valid_actions)  # Fallback
+        terminated = False
+        truncated = False
+        step_count = 0
+        max_steps = 729 + 10  # Safety limit
 
-        large_act_idx = action // 27
-        small_act_idx = action % 27
-        print(f"Agent: {agent_type} (Player {current_player})")
-        print(f"Plays action {action} (Large: {large_act_idx}, Small: {small_act_idx})")
+        while not terminated and not truncated and step_count < max_steps:
+            current_player = observation['current_player']
+            action_mask = info['action_mask']
+            valid_actions = np.where(action_mask == 1)[0]
 
-        # --- Step both environments to keep them in sync ---
-        observation, reward, terminated, truncated, info = env_for_logic.step(action)
-        render_obs, render_reward, render_terminated, render_truncated, render_info = render_env.step(
-            action)  # Render env also steps
+            if len(valid_actions) == 0:
+                print("No valid actions available! Environment state likely terminal.")
+                # Double check terminal status from env
+                terminated = env_for_logic._is_terminal
+                info = env_for_logic._get_info()  # Get final info
+                break
 
-        step_count += 1
-        print(f"Reward (for P{current_player}): {reward}")
-        print(f"Terminated: {terminated}, Truncated: {truncated}")
+            if current_player == PLAYER1:
+                action = player1_agent.choose_action(observation, info)
+                agent_type = f"Lookahead(n={LOOKAHEAD_DEPTH})"
+            else:  # Player 2
+                # Call the heuristic function directly
+                action = player2_agent_func(observation, info, _lines, rng)
+                agent_type = "Heuristic"
 
-    print("\n--- Game Over ---")
-    # Render the final state
-    render_env.render()
+            # --- Validate chosen action (important sanity check) ---
+            if action not in valid_actions:
+                print(f"CRITICAL ERROR: Agent {agent_type} chose invalid action {action}!")
+                print(f"Valid actions were: {valid_actions}")
+                print("Choosing random valid action instead.")
+                action = rng.choice(valid_actions)  # Fallback
 
-    # Get winner from the final info dictionary
-    final_info = info if terminated or truncated else env_for_logic._get_info()
-    winner = final_info.get('game_winner', None)
+            # Skip detailed print for batch runs
+            # large_act_idx = action // 27
+            # small_act_idx = action % 27
+            # print(f"Agent: {agent_type} (Player {current_player})")
+            # print(f"Plays action {action} (Large: {large_act_idx}, Small: {small_act_idx})")
 
-    if winner == PLAYER1:
-        print(f"Winner: Player 1 (X) - Lookahead(n={LOOKAHEAD_DEPTH})")
-    elif winner == PLAYER2:
-        print("Winner: Player 2 (O) - Heuristic")
-    elif winner == DRAW:
-        print("Result: Draw")
-    else:
-        print("Result: Unknown or Ongoing (check max_steps)")
+            # Step the environment
+            observation, reward, terminated, truncated, info = env_for_logic.step(action)
 
-    print(f"Total steps: {step_count}")
+            step_count += 1
+            # Skip detailed print for batch runs
+            # print(f"Reward (for P{current_player}): {reward}")
+            # print(f"Terminated: {terminated}, Truncated: {truncated}")
+
+        print(f"Game {game_num+1} completed in {step_count} steps")
+
+        # Get winner from the final info dictionary
+        final_info = info if terminated or truncated else env_for_logic._get_info()
+        winner = final_info.get('game_winner', None)
+
+        if winner == PLAYER1:
+            print(f"Game {game_num+1} Winner: Player 1 (X) - Lookahead(n={LOOKAHEAD_DEPTH})")
+            results["player1_wins"] += 1
+        elif winner == PLAYER2:
+            print(f"Game {game_num+1} Winner: Player 2 (O) - Heuristic")
+            results["player2_wins"] += 1
+        elif winner == DRAW:
+            print(f"Game {game_num+1} Result: Draw")
+            results["draws"] += 1
+        else:
+            print(f"Game {game_num+1} Result: Unknown or Ongoing (check max_steps)")
+
+        results["total_steps"] += step_count
+
+    # Print final statistics
+    print("\n=== Final Results ===")
+    print(f"Total games: {NUM_GAMES}")
+    print(f"Player 1 (Lookahead n={LOOKAHEAD_DEPTH}) wins: {results['player1_wins']} ({results['player1_wins']/NUM_GAMES*100:.1f}%)")
+    print(f"Player 2 (Heuristic) wins: {results['player2_wins']} ({results['player2_wins']/NUM_GAMES*100:.1f}%)")
+    print(f"Draws: {results['draws']} ({results['draws']/NUM_GAMES*100:.1f}%)")
+    print(f"Average steps per game: {results['total_steps']/NUM_GAMES:.1f}")
 
     env_for_logic.close()
-    render_env.close()
