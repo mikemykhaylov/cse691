@@ -74,7 +74,7 @@ class LookaheadAgent:
         info = current_env._get_info()
         terminated = current_env._is_terminal
         truncated = False  # Assuming no truncation in the game logic
-        up_to_this_point_moves = np.count_nonzero(obs['small_boards'])
+        up_to_this_point_moves = np.count_nonzero(obs['small_boards'])  # Moves before rollout
         rollout_moves = 0
 
         while not terminated and not truncated:
@@ -104,12 +104,20 @@ class LookaheadAgent:
                 raise RuntimeError("Rollout exceeded maximum possible game length.")
 
         # Game ended, evaluate the outcome
-        winner = info.get('game_winner', None)  # Use .get for safety
+        total_moves_taken = up_to_this_point_moves + rollout_moves  # Total moves in the game state
+
+        winner = info.get('game_winner', None)
+        MAX_SCORE = 27 ** 2 + 1  # A score higher than any possible move count
 
         if winner == self.player_id:
-            return -(27 ** 2 - up_to_this_point_moves - rollout_moves)
-        else:  # Loss or Draw
-            return 27 ** 2 - up_to_this_point_moves - rollout_moves
+            # Higher score for faster win (fewer moves)
+            return MAX_SCORE - total_moves_taken
+        elif winner == self.opponent_id:
+            # Lower score for faster loss (fewer moves)
+            return -(MAX_SCORE - total_moves_taken)
+        else:  # Draw
+            # Neutral or slightly negative score for draw
+            return 0  # Or perhaps a small negative value
 
     def _minimax_search(self, env_state: SuperTicTacToe3DEnv, depth: int, taken_moves: ndarray) -> float:
         """
@@ -124,12 +132,18 @@ class LookaheadAgent:
             or INF_MOVES for loss/draw) from this state.
         """
         # Check if game ended *before* reaching max depth or rollout
+        # Inside _minimax_search:
         if env_state._is_terminal:
             winner = env_state._game_winner
+            MAX_SCORE = 27 ** 2 + 1  # Use the same scale
             if winner == self.player_id:
-                return -1
-            else:
-                return 1
+                # Immediate win is best possible outcome
+                return MAX_SCORE
+            elif winner == self.opponent_id:
+                # Immediate loss is worst possible outcome
+                return -MAX_SCORE
+            else:  # Draw
+                return 0
 
         # Base case: Reached maximum lookahead depth
         if depth == self.n:
@@ -162,9 +176,9 @@ class LookaheadAgent:
 
         # Initialize based on whose turn it is
         if current_player == self.player_id:
-            best_value = float('inf')  # Agent wants to *minimize* moves-to-win
+            best_value = -float('inf')  # Agent wants to *minimize* moves-to-win
         else:  # Opponent's turn
-            best_value = -float('inf')  # Opponent wants to *maximize* agent's moves-to-win
+            best_value = float('inf')  # Opponent wants to *maximize* agent's moves-to-win
 
         # Explore child nodes
         for action in valid_actions:
@@ -192,9 +206,9 @@ class LookaheadAgent:
 
             # --- Update best_value (Minimax logic) ---
             if current_player == self.player_id:
-                best_value = min(best_value, value)  # Agent minimizes
+                best_value = max(best_value, value)  # Agent maximizes
             else:  # Opponent's turn
-                best_value = max(best_value, value)  # Opponent maximizes agent's cost
+                best_value = min(best_value, value)  # Opponent minimizes
 
         print(f"LookaheadAgent: Current player {current_player} after move sequence {taken_moves} - Best value: {best_value}")
 
@@ -254,7 +268,7 @@ class LookaheadAgent:
             return 13 * 27 + 13  # Center cell in the first large board
 
         best_action = -1
-        best_value = float('inf')  # Start with a high value for minimax
+        best_value = -float('inf')  # Agent maximizes
 
         # --- Quickly select the big cell if needed ---
         # This is suboptimal solution to the case when all big cells are available
@@ -282,15 +296,18 @@ class LookaheadAgent:
 
         # Process results to find the best action
         for action, value in results:
-            # --- Update best action ---
-            # We want the action that leads to the minimum value (fastest win)
-            if value < best_value:
+            # We want the action that leads to the maximum value (best outcome)
+            if value > best_value:
                 best_value = value
                 best_action = action
             elif value == best_value:
-                # Tie-breaking: randomly choose among equally good moves
-                if best_action == -1 or self.rng.random() < 0.5:  # 50% chance to switch
+                # Tie-breaking remains the same logic (random choice)
+                if best_action == -1 or self.rng.random() < 0.5:
                     best_action = action
+
+        if best_action == -1:
+            print("Warning: All initial moves evaluated to negative infinity or failed. Choosing random.")
+            best_action = self.rng.choice(valid_actions)
 
         end_time = time.time()
         print(f"LookaheadAgent: Search complete in {end_time - start_time:.2f}s. Best value: {best_value}")
