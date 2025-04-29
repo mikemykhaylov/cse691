@@ -164,15 +164,15 @@ class LookaheadAgent:
             # Evaluate based on current state (likely a draw)
             raise RuntimeError("LookaheadAgent._minimax_search called with no valid moves and game is not terminal!")
 
-        next_large_cell_idx = obs['next_large_cell']
-        if next_large_cell_idx == 27:
-            playable_large_indices = sorted(list(set(a // 27 for a in valid_actions)))
-            print("LookaheadAgent: Selecting big cell inside minimax using heuristic to reduce search space.")
-            large_board = obs["large_board"]
-            chosen_large_idx_target = choose_action_within_board(large_board.copy(), current_player,
-                                                                 playable_large_indices, _lines, self.rng)
-            valid_actions = valid_actions[np.where(valid_actions // 27 == chosen_large_idx_target)[0]]
-            print(f"LookaheadAgent: Masked valid actions to {valid_actions} based on heuristic choice.")
+        # next_large_cell_idx = obs['next_large_cell']
+        # if next_large_cell_idx == 27:
+        #     playable_large_indices = sorted(list(set(a // 27 for a in valid_actions)))
+            # print("LookaheadAgent: Selecting big cell inside minimax using heuristic to reduce search space.")
+            # large_board = obs["large_board"]
+            # chosen_large_idx_target = choose_action_within_board(large_board.copy(), current_player,
+            #                                                      playable_large_indices, _lines, self.rng)
+            # valid_actions = valid_actions[np.where(valid_actions // 27 == chosen_large_idx_target)[0]]
+            # print(f"LookaheadAgent: Masked valid actions to {valid_actions} based on heuristic choice.")
 
         # Initialize based on whose turn it is
         if current_player == self.player_id:
@@ -275,15 +275,15 @@ class LookaheadAgent:
         # to play and we have more than the standard <= 27 moves to play. To narrow
         # our search, we can quickly select the big cell using the underlying heuristic
         # This is a heuristic choice, not a minimax search, but it helps reduce the search space
-        next_large_cell_idx = observation['next_large_cell']
-        if next_large_cell_idx == 27:
-            playable_large_indices = sorted(list(set(a // 27 for a in valid_actions)))
-            print("LookaheadAgent: Selecting big cell using heuristic to reduce search space.")
-            large_board = observation["large_board"]
-            chosen_large_idx_target = choose_action_within_board(large_board.copy(), current_player,
-                                                                 playable_large_indices, _lines, rng)
-            valid_actions = valid_actions[np.where(valid_actions // 27 == chosen_large_idx_target)[0]]
-            print(f"LookaheadAgent: Masked valid actions to {valid_actions} based on heuristic choice.")
+        # next_large_cell_idx = observation['next_large_cell']
+        # if next_large_cell_idx == 27:
+        #     playable_large_indices = sorted(list(set(a // 27 for a in valid_actions)))
+            # print("LookaheadAgent: Selecting big cell using heuristic to reduce search space.")
+            # large_board = observation["large_board"]
+            # chosen_large_idx_target = choose_action_within_board(large_board.copy(), current_player,
+            #                                                      playable_large_indices, _lines, rng)
+            # valid_actions = valid_actions[np.where(valid_actions // 27 == chosen_large_idx_target)[0]]
+            # print(f"LookaheadAgent: Masked valid actions to {valid_actions} based on heuristic choice.")
 
         # Create a pool of workers
         with mp.Pool(processes=min(mp.cpu_count(), len(valid_actions))) as pool:
