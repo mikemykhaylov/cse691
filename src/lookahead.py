@@ -74,7 +74,7 @@ class LookaheadAgent:
         info = current_env._get_info()
         terminated = current_env._is_terminal
         truncated = False  # Assuming no truncation in the game logic
-        up_to_this_point_moves = np.count_nonzero(obs['small_boards'])
+        up_to_this_point_moves = np.count_nonzero(obs['small_boards'])  # Moves before rollout
         rollout_moves = 0
 
         while not terminated and not truncated:
@@ -104,12 +104,20 @@ class LookaheadAgent:
                 raise RuntimeError("Rollout exceeded maximum possible game length.")
 
         # Game ended, evaluate the outcome
-        winner = info.get('game_winner', None)  # Use .get for safety
+        total_moves_taken = up_to_this_point_moves + rollout_moves  # Total moves in the game state
+
+        winner = info.get('game_winner', None)
+        MAX_SCORE = 27 ** 2 + 1  # A score higher than any possible move count
 
         if winner == self.player_id:
-            return -(27 ** 2 - up_to_this_point_moves - rollout_moves)
-        else:  # Loss or Draw
-            return 27 ** 2 - up_to_this_point_moves - rollout_moves
+            # Higher score for faster win (fewer moves)
+            return MAX_SCORE - total_moves_taken
+        elif winner == self.opponent_id:
+            # Lower score for faster loss (fewer moves)
+            return -(MAX_SCORE - total_moves_taken)
+        else:  # Draw
+            # Neutral or slightly negative score for draw
+            return 0  # Or perhaps a small negative value
 
     def _minimax_search(self, env_state: SuperTicTacToe3DEnv, depth: int, taken_moves: ndarray) -> float:
         """
@@ -124,12 +132,18 @@ class LookaheadAgent:
             or INF_MOVES for loss/draw) from this state.
         """
         # Check if game ended *before* reaching max depth or rollout
+        # Inside _minimax_search:
         if env_state._is_terminal:
             winner = env_state._game_winner
+            MAX_SCORE = 27 ** 2 + 1  # Use the same scale
             if winner == self.player_id:
-                return -1
-            else:
-                return 1
+                # Immediate win is best possible outcome
+                return MAX_SCORE
+            elif winner == self.opponent_id:
+                # Immediate loss is worst possible outcome
+                return -MAX_SCORE
+            else:  # Draw
+                return 0
 
         # Base case: Reached maximum lookahead depth
         if depth == self.n:
@@ -143,28 +157,28 @@ class LookaheadAgent:
         action_mask = info['action_mask']
         valid_actions = np.where(action_mask == 1)[0]
 
-        print(f"LookaheadAgent: Exploring move subsequence {taken_moves} at depth {depth}, current player {current_player}.")
+        # print(f"LookaheadAgent: Exploring move subsequence {taken_moves} at depth {depth}, current player {current_player}.")
 
         if len(valid_actions) == 0:
             # Game ends here unexpectedly (should have been caught by _is_terminal)
             # Evaluate based on current state (likely a draw)
             raise RuntimeError("LookaheadAgent._minimax_search called with no valid moves and game is not terminal!")
 
-        next_large_cell_idx = obs['next_large_cell']
-        if next_large_cell_idx == 27:
-            playable_large_indices = sorted(list(set(a // 27 for a in valid_actions)))
-            print("LookaheadAgent: Selecting big cell inside minimax using heuristic to reduce search space.")
-            large_board = obs["large_board"]
-            chosen_large_idx_target = choose_action_within_board(large_board.copy(), current_player,
-                                                                 playable_large_indices, _lines, self.rng)
-            valid_actions = valid_actions[np.where(valid_actions // 27 == chosen_large_idx_target)[0]]
-            print(f"LookaheadAgent: Masked valid actions to {valid_actions} based on heuristic choice.")
+        # next_large_cell_idx = obs['next_large_cell']
+        # if next_large_cell_idx == 27:
+        #     playable_large_indices = sorted(list(set(a // 27 for a in valid_actions)))
+            # print("LookaheadAgent: Selecting big cell inside minimax using heuristic to reduce search space.")
+            # large_board = obs["large_board"]
+            # chosen_large_idx_target = choose_action_within_board(large_board.copy(), current_player,
+            #                                                      playable_large_indices, _lines, self.rng)
+            # valid_actions = valid_actions[np.where(valid_actions // 27 == chosen_large_idx_target)[0]]
+            # print(f"LookaheadAgent: Masked valid actions to {valid_actions} based on heuristic choice.")
 
         # Initialize based on whose turn it is
         if current_player == self.player_id:
-            best_value = float('inf')  # Agent wants to *minimize* moves-to-win
+            best_value = -float('inf')  # Agent wants to *minimize* moves-to-win
         else:  # Opponent's turn
-            best_value = -float('inf')  # Opponent wants to *maximize* agent's moves-to-win
+            best_value = float('inf')  # Opponent wants to *maximize* agent's moves-to-win
 
         # Explore child nodes
         for action in valid_actions:
@@ -188,15 +202,15 @@ class LookaheadAgent:
                 # --- Recursively call minimax ---
                 new_taken_moves = np.append(taken_moves, action)
                 value = self._minimax_search(child_env_state, depth + 1, new_taken_moves)
-                print(f"LookaheadAgent: Move sequence {new_taken_moves} evaluated to value {value}")
+                # print(f"LookaheadAgent: Move sequence {new_taken_moves} evaluated to value {value}")
 
             # --- Update best_value (Minimax logic) ---
             if current_player == self.player_id:
-                best_value = min(best_value, value)  # Agent minimizes
+                best_value = max(best_value, value)  # Agent maximizes
             else:  # Opponent's turn
-                best_value = max(best_value, value)  # Opponent maximizes agent's cost
+                best_value = min(best_value, value)  # Opponent minimizes
 
-        print(f"LookaheadAgent: Current player {current_player} after move sequence {taken_moves} - Best value: {best_value}")
+        # print(f"LookaheadAgent: Current player {current_player} after move sequence {taken_moves} - Best value: {best_value}")
 
         return best_value
 
@@ -220,7 +234,7 @@ class LookaheadAgent:
 
             # Start the minimax search from the state after the first move
             value = self._minimax_search(initial_env_copy, depth=1, taken_moves=np.array([action]))
-            print(f"LookaheadAgent: Move {action} evaluated to value: {value}")
+            # print(f"LookaheadAgent: Move {action} evaluated to value: {value}")
             return action, value
         except Exception as e:
             print(f"Warning: Error processing action {action}: {e}")
@@ -240,7 +254,7 @@ class LookaheadAgent:
         start_time = time.time()
         action_mask = info['action_mask']
         valid_actions = np.where(action_mask == 1)[0]
-        print(f"LookaheadAgent: Valid actions: {valid_actions}")
+        # print(f"LookaheadAgent: Valid actions: {valid_actions}")
 
         if len(valid_actions) == 0:
             raise RuntimeError("LookaheadAgent.choose_action called with no valid moves!")
@@ -254,22 +268,22 @@ class LookaheadAgent:
             return 13 * 27 + 13  # Center cell in the first large board
 
         best_action = -1
-        best_value = float('inf')  # Start with a high value for minimax
+        best_value = -float('inf')  # Agent maximizes
 
         # --- Quickly select the big cell if needed ---
         # This is suboptimal solution to the case when all big cells are available
         # to play and we have more than the standard <= 27 moves to play. To narrow
         # our search, we can quickly select the big cell using the underlying heuristic
         # This is a heuristic choice, not a minimax search, but it helps reduce the search space
-        next_large_cell_idx = observation['next_large_cell']
-        if next_large_cell_idx == 27:
-            playable_large_indices = sorted(list(set(a // 27 for a in valid_actions)))
-            print("LookaheadAgent: Selecting big cell using heuristic to reduce search space.")
-            large_board = observation["large_board"]
-            chosen_large_idx_target = choose_action_within_board(large_board.copy(), current_player,
-                                                                 playable_large_indices, _lines, rng)
-            valid_actions = valid_actions[np.where(valid_actions // 27 == chosen_large_idx_target)[0]]
-            print(f"LookaheadAgent: Masked valid actions to {valid_actions} based on heuristic choice.")
+        # next_large_cell_idx = observation['next_large_cell']
+        # if next_large_cell_idx == 27:
+        #     playable_large_indices = sorted(list(set(a // 27 for a in valid_actions)))
+            # print("LookaheadAgent: Selecting big cell using heuristic to reduce search space.")
+            # large_board = observation["large_board"]
+            # chosen_large_idx_target = choose_action_within_board(large_board.copy(), current_player,
+            #                                                      playable_large_indices, _lines, rng)
+            # valid_actions = valid_actions[np.where(valid_actions // 27 == chosen_large_idx_target)[0]]
+            # print(f"LookaheadAgent: Masked valid actions to {valid_actions} based on heuristic choice.")
 
         # Create a pool of workers
         with mp.Pool(processes=min(mp.cpu_count(), len(valid_actions))) as pool:
@@ -282,15 +296,18 @@ class LookaheadAgent:
 
         # Process results to find the best action
         for action, value in results:
-            # --- Update best action ---
-            # We want the action that leads to the minimum value (fastest win)
-            if value < best_value:
+            # We want the action that leads to the maximum value (best outcome)
+            if value > best_value:
                 best_value = value
                 best_action = action
             elif value == best_value:
-                # Tie-breaking: randomly choose among equally good moves
-                if best_action == -1 or self.rng.random() < 0.5:  # 50% chance to switch
+                # Tie-breaking remains the same logic (random choice)
+                if best_action == -1 or self.rng.random() < 0.5:
                     best_action = action
+
+        if best_action == -1:
+            print("Warning: All initial moves evaluated to negative infinity or failed. Choosing random.")
+            best_action = self.rng.choice(valid_actions)
 
         end_time = time.time()
         print(f"LookaheadAgent: Search complete in {end_time - start_time:.2f}s. Best value: {best_value}")
@@ -308,14 +325,14 @@ if __name__ == '__main__':
     register_env()
 
     print_3d_grid_indices()  # Print the index map for reference
-    print("\n--- Running Sample Episode (Lookahead Agent vs Heuristic Agent) ---")
+    print("\n--- Running 100 Episodes (Lookahead Agent vs Heuristic Agent) ---")
 
     # Create the base environment instance
     try:
         # Need render_mode=None for copying, create a separate one for rendering if needed
         env_for_logic = SuperTicTacToe3DEnv(render_mode=None)
-        # Optional: Create a second env just for rendering the final output
-        render_env = gym.make('SuperTicTacToe3D-v0', render_mode='human')  # print("Environments created.")
+        # We don't need rendering for batch runs
+        # render_env = gym.make('SuperTicTacToe3D-v0', render_mode='human')
     except gym.error.Error as e:
         print(f"Failed to create environment: {e}")
         print("Ensure the environment is registered correctly.")
@@ -324,99 +341,114 @@ if __name__ == '__main__':
         print("SuperTicTacToe3DEnv class not found. Imports failed.")
         exit()
 
-    # Use a fixed seed for reproducibility
-    seed = 123
-    print(f"Seed: {seed}")
-    observation, info = env_for_logic.reset(seed=seed)
-    # Also reset the render env to sync state initially
-    render_env.reset(seed=seed)
-
-    # Use the environment's RNG for agents
-    rng = env_for_logic.np_random
+    # Track results
+    results = {
+        "player1_wins": 0,
+        "player2_wins": 0,
+        "draws": 0,
+        "total_steps": 0
+    }
 
     # Create Agents
     LOOKAHEAD_DEPTH = 2  # Set the desired lookahead depth (e.g., 2 or 3)
-    try:
-        player1_agent = LookaheadAgent(player_id=PLAYER1, lookahead_depth=LOOKAHEAD_DEPTH,
-                                       env_for_copying=env_for_logic, rng=rng)
-        # Player 2 uses the heuristic agent (needs RNG)
-        # We don't instantiate it as a class, just use the function
-        player2_agent_func = choose_action_heuristic
-        print(f"Agents created: P1=Lookahead(n={LOOKAHEAD_DEPTH}), P2=Heuristic.")
 
-    except Exception as e:
-        print(f"Failed to create agents: {e}")
-        exit()
+    # Run 100 games
+    NUM_GAMES = 10
 
-    terminated = False
-    truncated = False
-    step_count = 0
-    max_steps = 729 + 10  # Safety limit
+    for game_num in range(NUM_GAMES):
+        print(f"\n=== Starting Game {game_num+1}/{NUM_GAMES} ===")
 
-    while not terminated and not truncated and step_count < max_steps:
-        current_player = observation['current_player']
-        action_mask = info['action_mask']
-        valid_actions = np.where(action_mask == 1)[0]
+        # Use a different seed for each game
+        seed = np.random.randint(0, 2**32 - 1)
+        print(f"Seed: {seed}")
+        observation, info = env_for_logic.reset(seed=seed)
 
-        if len(valid_actions) == 0:
-            print("No valid actions available! Environment state likely terminal.")
-            # Double check terminal status from env
-            terminated = env_for_logic._is_terminal
-            info = env_for_logic._get_info()  # Get final info
-            break
+        # Use the environment's RNG for agents
+        rng = env_for_logic.np_random
 
-        print(f"\n--- Step {step_count + 1} ---")
-        # render_env.render() # Render the state *before* the move
+        try:
+            player1_agent = LookaheadAgent(player_id=PLAYER1, lookahead_depth=LOOKAHEAD_DEPTH,
+                                           env_for_copying=env_for_logic, rng=rng)
+            # Player 2 uses the heuristic agent (needs RNG)
+            player2_agent_func = choose_action_heuristic
+            print(f"Agents created: P1=Lookahead(n={LOOKAHEAD_DEPTH}), P2=Heuristic.")
 
-        if current_player == PLAYER1:
-            print(f"Player {current_player} (Lookahead) choosing move...")
-            action = player1_agent.choose_action(observation, info)
-            agent_type = f"Lookahead(n={LOOKAHEAD_DEPTH})"
-        else:  # Player 2
-            print(f"Player {current_player} (Heuristic) choosing move...")
-            # Call the heuristic function directly
-            action = player2_agent_func(observation, info, _lines, rng)
-            agent_type = "Heuristic"
+        except Exception as e:
+            print(f"Failed to create agents: {e}")
+            exit()
 
-        # --- Validate chosen action (important sanity check) ---
-        if action not in valid_actions:
-            print(f"CRITICAL ERROR: Agent {agent_type} chose invalid action {action}!")
-            print(f"Valid actions were: {valid_actions}")
-            print("Choosing random valid action instead.")
-            action = rng.choice(valid_actions)  # Fallback
+        terminated = False
+        truncated = False
+        step_count = 0
+        max_steps = 729 + 10  # Safety limit
 
-        large_act_idx = action // 27
-        small_act_idx = action % 27
-        print(f"Agent: {agent_type} (Player {current_player})")
-        print(f"Plays action {action} (Large: {large_act_idx}, Small: {small_act_idx})")
+        while not terminated and not truncated and step_count < max_steps:
+            current_player = observation['current_player']
+            action_mask = info['action_mask']
+            valid_actions = np.where(action_mask == 1)[0]
 
-        # --- Step both environments to keep them in sync ---
-        observation, reward, terminated, truncated, info = env_for_logic.step(action)
-        render_obs, render_reward, render_terminated, render_truncated, render_info = render_env.step(
-            action)  # Render env also steps
+            if len(valid_actions) == 0:
+                print("No valid actions available! Environment state likely terminal.")
+                # Double check terminal status from env
+                terminated = env_for_logic._is_terminal
+                info = env_for_logic._get_info()  # Get final info
+                break
 
-        step_count += 1
-        print(f"Reward (for P{current_player}): {reward}")
-        print(f"Terminated: {terminated}, Truncated: {truncated}")
+            if current_player == PLAYER1:
+                action = player1_agent.choose_action(observation, info)
+                agent_type = f"Lookahead(n={LOOKAHEAD_DEPTH})"
+            else:  # Player 2
+                # Call the heuristic function directly
+                action = player2_agent_func(observation, info, _lines, rng)
+                agent_type = "Heuristic"
 
-    print("\n--- Game Over ---")
-    # Render the final state
-    render_env.render()
+            # --- Validate chosen action (important sanity check) ---
+            if action not in valid_actions:
+                print(f"CRITICAL ERROR: Agent {agent_type} chose invalid action {action}!")
+                print(f"Valid actions were: {valid_actions}")
+                print("Choosing random valid action instead.")
+                action = rng.choice(valid_actions)  # Fallback
 
-    # Get winner from the final info dictionary
-    final_info = info if terminated or truncated else env_for_logic._get_info()
-    winner = final_info.get('game_winner', None)
+            # Skip detailed print for batch runs
+            # large_act_idx = action // 27
+            # small_act_idx = action % 27
+            # print(f"Agent: {agent_type} (Player {current_player})")
+            # print(f"Plays action {action} (Large: {large_act_idx}, Small: {small_act_idx})")
 
-    if winner == PLAYER1:
-        print(f"Winner: Player 1 (X) - Lookahead(n={LOOKAHEAD_DEPTH})")
-    elif winner == PLAYER2:
-        print("Winner: Player 2 (O) - Heuristic")
-    elif winner == DRAW:
-        print("Result: Draw")
-    else:
-        print("Result: Unknown or Ongoing (check max_steps)")
+            # Step the environment
+            observation, reward, terminated, truncated, info = env_for_logic.step(action)
 
-    print(f"Total steps: {step_count}")
+            step_count += 1
+            # Skip detailed print for batch runs
+            # print(f"Reward (for P{current_player}): {reward}")
+            # print(f"Terminated: {terminated}, Truncated: {truncated}")
+
+        print(f"Game {game_num+1} completed in {step_count} steps")
+
+        # Get winner from the final info dictionary
+        final_info = info if terminated or truncated else env_for_logic._get_info()
+        winner = final_info.get('game_winner', None)
+
+        if winner == PLAYER1:
+            print(f"Game {game_num+1} Winner: Player 1 (X) - Lookahead(n={LOOKAHEAD_DEPTH})")
+            results["player1_wins"] += 1
+        elif winner == PLAYER2:
+            print(f"Game {game_num+1} Winner: Player 2 (O) - Heuristic")
+            results["player2_wins"] += 1
+        elif winner == DRAW:
+            print(f"Game {game_num+1} Result: Draw")
+            results["draws"] += 1
+        else:
+            print(f"Game {game_num+1} Result: Unknown or Ongoing (check max_steps)")
+
+        results["total_steps"] += step_count
+
+    # Print final statistics
+    print("\n=== Final Results ===")
+    print(f"Total games: {NUM_GAMES}")
+    print(f"Player 1 (Lookahead n={LOOKAHEAD_DEPTH}) wins: {results['player1_wins']} ({results['player1_wins']/NUM_GAMES*100:.1f}%)")
+    print(f"Player 2 (Heuristic) wins: {results['player2_wins']} ({results['player2_wins']/NUM_GAMES*100:.1f}%)")
+    print(f"Draws: {results['draws']} ({results['draws']/NUM_GAMES*100:.1f}%)")
+    print(f"Average steps per game: {results['total_steps']/NUM_GAMES:.1f}")
 
     env_for_logic.close()
-    render_env.close()
